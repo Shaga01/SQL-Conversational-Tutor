@@ -1,0 +1,96 @@
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+header h1 {
+  margin-bottom: 0.25rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  gap: 1rem;
+}
+
+.panel {
+  background: #10131a;
+  border: 1px solid #2b3442;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.chatBox {
+  height: 300px;
+  overflow: auto;
+  border: 1px solid #2b3442;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.msg {
+  margin-bottom: 0.6rem;
+  line-height: 1.35;
+}
+
+.prompt {
+  display: flex;
+  gap: 8px;
+}
+
+input,
+select,
+textarea,
+button {
+  width: 100%;
+  background: #0a0d13;
+  color: #d8deea;
+  border: 1px solid #2b3442;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+textarea {
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+}
+
+.actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tableWrap {
+  overflow: auto;
+  max-height: 320px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  border: 1px solid #2b3442;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+pre {
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+.error {
+  color: #ff8f8f;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
