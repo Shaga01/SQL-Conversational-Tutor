@@ -2,14 +2,28 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+import re
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DB_PATH = BASE_DIR / "data" / "tutor.db"
+SESSIONS_DIR = BASE_DIR / "data" / "sessions"
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+def _safe_session_id(session_id: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]", "_", session_id.strip())
+    return cleaned or "default"
+
+
+def db_path_for_session(session_id: str) -> Path:
+    if session_id == "default":
+        return DB_PATH
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    return SESSIONS_DIR / f"{_safe_session_id(session_id)}.db"
+
+
+def get_connection(session_id: str = "default") -> sqlite3.Connection:
+    conn = sqlite3.connect(db_path_for_session(session_id))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -89,8 +103,8 @@ def init_db() -> None:
     conn.close()
 
 
-def get_schema_text() -> str:
-    conn = get_connection()
+def get_schema_text(session_id: str = "default") -> str:
+    conn = get_connection(session_id)
     cur = conn.cursor()
     cur.execute(
         """
@@ -105,3 +119,38 @@ def get_schema_text() -> str:
         lines.append(f"{row['name']}: {row['sql']}")
     conn.close()
     return "\n".join(lines)
+
+
+def apply_schema_sql(session_id: str, schema_sql: str, seed_sql: str = "") -> None:
+    if not schema_sql.strip():
+        raise ValueError("schema_sql cannot be empty.")
+    conn = get_connection(session_id)
+    cur = conn.cursor()
+    try:
+        cur.executescript(schema_sql)
+        if seed_sql.strip():
+            cur.executescript(seed_sql)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_schema_catalog(session_id: str = "default") -> dict:
+    conn = get_connection(session_id)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type='table' AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+        """
+    )
+    tables = [r["name"] for r in cur.fetchall()]
+    catalog = {"tables": {}}
+    for table in tables:
+        cur.execute(f"PRAGMA table_info('{table}')")
+        cols = [row["name"] for row in cur.fetchall()]
+        catalog["tables"][table] = cols
+    conn.close()
+    return catalog
