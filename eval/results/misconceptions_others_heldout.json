@@ -1,0 +1,78 @@
+{
+  "split": "others",
+  "mutants_scored": 3188,
+  "macro_graded_recall": 1.0,
+  "micro_graded_recall": 1.0,
+  "micro_static_recall": 1.0,
+  "clean_queries": 1659,
+  "clean_flagged_rate": 0.086,
+  "clean_flagged_by_rule": {
+    "wrong-join-key": 136,
+    "ungrouped-column": 7
+  },
+  "operators": {
+    "misspell column": {
+      "applicable": 1659,
+      "equivalent_excluded": 122,
+      "scored": 1537,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "misspell table": {
+      "applicable": 1543,
+      "equivalent_excluded": 0,
+      "scored": 1543,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop ORDER BY before LIMIT": {
+      "applicable": 58,
+      "equivalent_excluded": 58,
+      "scored": 0,
+      "static_recall": null,
+      "graded_recall": null,
+      "flagged_something": null,
+      "missed_examples": []
+    },
+    "drop ON condition": {
+      "applicable": 1041,
+      "equivalent_excluded": 1041,
+      "scored": 0,
+      "static_recall": null,
+      "graded_recall": null,
+      "flagged_something": null,
+      "missed_examples": []
+    },
+    "drop DISTINCT": {
+      "applicable": 573,
+      "equivalent_excluded": 573,
+      "scored": 0,
+      "static_recall": null,
+      "graded_recall": null,
+      "flagged_something": null,
+      "missed_examples": []
+    },
+    "drop GROUP BY column": {
+      "applicable": 104,
+      "equivalent_excluded": 1,
+      "scored": 103,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "HAVING \u2192 WHERE": {
+      "applicable": 5,
+      "equivalent_excluded": 0,
+      "scored": 5,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    }
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "split": "dev",
+  "mutants_scored": 3000,
+  "macro_graded_recall": 0.994,
+  "micro_graded_recall": 0.989,
+  "micro_static_recall": 0.973,
+  "clean_queries": 1062,
+  "clean_flagged_rate": 0.016,
+  "clean_flagged_by_rule": {
+    "ungrouped-column": 11,
+    "literal-case": 4,
+    "cartesian-join": 2
+  },
+  "operators": {
+    "misspell column": {
+      "applicable": 1013,
+      "equivalent_excluded": 5,
+      "scored": 1008,
+      "static_recall": 0.989,
+      "graded_recall": 0.989,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "spider-dev:181",
+          "mutant": "SELECT Abbreviation FROM AIRLINES WHERE Airline = \"JtBlue Airways\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-dev:213",
+          "mutant": "SELECT COUNT(*) FROM FLIGHTS AS T1 JOIN AIRLINES AS T2 ON T1.Airline = T2.uid WHERE T2.Airline = \"JetBlue Arways\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-dev:588",
+          "mutant": "SELECT Title FROM Cartoon WHERE Directed_by = \"Ben Jnes\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        }
+      ]
+    },
+    "misspell table": {
+      "applicable": 1010,
+      "equivalent_excluded": 0,
+      "scored": 1010,
+      "static_recall": 0.987,
+      "graded_recall": 0.987,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "exercise:group-2",
+          "mutant": "SELECT status, COUNT(*) AS n FROM order GROUP BY status ORDER BY n DESC",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        },
+        {
+          "source": "exercise:join-1",
+          "mutant": "SELECT o.id, o.order_date, c.last_name FROM order AS o JOIN customers AS c ON c.id = o.customer_id",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        },
+        {
+          "source": "exercise:outer-1",
+          "mutant": "SELECT c.id, c.first_name, c.last_name FROM customers AS c LEFT JOIN order AS o ON o.customer_id = c.id WHERE o.id IS NULL",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        }
+      ]
+    },
+    "change literal case": {
+      "applicable": 106,
+      "equivalent_excluded": 11,
+      "scored": 95,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "IS NULL \u2192 = NULL": {
+      "applicable": 3,
+      "equivalent_excluded": 0,
+      "scored": 3,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop ORDER BY before LIMIT": {
+      "applicable": 184,
+      "equivalent_excluded": 55,
+      "scored": 129,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop DISTINCT": {
+      "applicable": 124,
+      "equivalent_excluded": 81,
+      "scored": 43,
+      "static_recall": 0.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop GROUP BY column": {
+      "applicable": 92,
+      "equivalent_excluded": 1,
+      "scored": 91,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "HAVING \u2192 WHERE": {
+      "applicable": 72,
+      "equivalent_excluded": 0,
+      "scored": 72,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop ON condition": {
+      "applicable": 417,
+      "equivalent_excluded": 61,
+      "scored": 356,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "join on unrelated ids": {
+      "applicable": 217,
+      "equivalent_excluded": 28,
+      "scored": 189,
+      "static_recall": 0.947,
+      "graded_recall": 0.947,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "exercise:self-1",
+          "mutant": "SELECT e.name AS employee, m.name AS manager FROM employees AS e JOIN employees AS m ON m.id = e.id",
+          "found": [
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-dev:100",
+          "mutant": "SELECT DISTINCT T1.Maker FROM CAR_MAKERS AS T1 JOIN MODEL_LIST AS T2 ON T1.Id = T2.Maker JOIN CAR_NAMES AS T3 ON T2.model = T3.MakeId JOIN CARS_DATA AS T4 ON T3.MakeId = T4.id WHERE T4.year = '1970'",
+          "found": [
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-dev:103",
+          "mutant": "SELECT DISTINCT T1.model FROM MODEL_LIST AS T1 JOIN CAR_NAMES AS T2 ON T1.model = T2.MakeId JOIN CARS_DATA AS T3 ON T2.MakeId = T3.id WHERE T3.year > 1980",
+          "found": [
+            "wrong-result"
+          ]
+        }
+      ]
+    },
+    "LEFT JOIN \u2192 JOIN": {
+      "applicable": 3,
+      "equivalent_excluded": 0,
+      "scored": 3,
+      "static_recall": 0.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "COUNT(col) \u2192 COUNT(*) after LEFT JOIN": {
+      "applicable": 1,
+      "equivalent_excluded": 0,
+      "scored": 1,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    }
+  }
+}

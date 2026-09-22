@@ -1,0 +1,169 @@
+{
+  "split": "train",
+  "mutants_scored": 18408,
+  "macro_graded_recall": 0.996,
+  "micro_graded_recall": 0.993,
+  "micro_static_recall": 0.978,
+  "clean_queries": 6997,
+  "clean_flagged_rate": 0.021,
+  "clean_flagged_by_rule": {
+    "ungrouped-column": 99,
+    "cartesian-join": 33,
+    "wrong-join-key": 12,
+    "literal-case": 2
+  },
+  "operators": {
+    "misspell column": {
+      "applicable": 6665,
+      "equivalent_excluded": 15,
+      "scored": 6650,
+      "static_recall": 0.986,
+      "graded_recall": 0.986,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "spider-train:118",
+          "mutant": "SELECT AVG(lat), AVG(long) FROM station WHERE city = \"Sa Jose\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-train:129",
+          "mutant": "SELECT COUNT(*) FROM station WHERE city = \"Montain View\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-train:165",
+          "mutant": "SELECT COUNT(*) FROM trip AS T1 JOIN station AS T2 ON T1.end_station_id = T2.id WHERE T2.city <> \"San Fracisco\"",
+          "found": [
+            "double-quoted-string",
+            "wrong-result"
+          ]
+        }
+      ]
+    },
+    "misspell table": {
+      "applicable": 6588,
+      "equivalent_excluded": 0,
+      "scored": 6588,
+      "static_recall": 0.994,
+      "graded_recall": 0.994,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "spider-train:1606",
+          "mutant": "SELECT T1.invoice_date, T1.order_id, T2.order_details FROM Invoices AS T1 JOIN Order AS T2 ON T1.order_id = T2.order_id",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        },
+        {
+          "source": "spider-train:1609",
+          "mutant": "SELECT T2.order_id, T2.order_details FROM Invoices AS T1 JOIN Order AS T2 ON T1.order_id = T2.order_id GROUP BY T2.order_id HAVING COUNT(*) > 2",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        },
+        {
+          "source": "spider-train:4321",
+          "mutant": "SELECT T1.grant_amount FROM Grants AS T1 JOIN Documents AS T2 ON T1.grant_id = T2.grant_id WHERE T2.sent_date < '1986-08-26 20:49:27' INTERSECT SELECT grant_amount FROM grant WHERE grant_end_date > '1",
+          "found": [
+            "syntax",
+            "syntax"
+          ]
+        }
+      ]
+    },
+    "drop ON condition": {
+      "applicable": 2770,
+      "equivalent_excluded": 382,
+      "scored": 2388,
+      "static_recall": 0.999,
+      "graded_recall": 0.999,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "spider-train:2480",
+          "mutant": "SELECT DISTINCT T3.name, T2.title, T1.stars FROM Rating AS T1, Movie AS T2 JOIN Reviewer AS T3 ON T1.rID = T3.rID WHERE T2.director = T3.name",
+          "found": [
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-train:2481",
+          "mutant": "SELECT DISTINCT T3.name, T2.title, T1.stars FROM Rating AS T1 JOIN Movie AS T2 ON T1.mID = T2.mID, Reviewer AS T3 WHERE T2.director = T3.name",
+          "found": [
+            "wrong-result"
+          ]
+        }
+      ]
+    },
+    "change literal case": {
+      "applicable": 756,
+      "equivalent_excluded": 57,
+      "scored": 699,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop DISTINCT": {
+      "applicable": 942,
+      "equivalent_excluded": 668,
+      "scored": 274,
+      "static_recall": 0.0,
+      "graded_recall": 0.993,
+      "flagged_something": 1.0,
+      "missed_examples": [
+        {
+          "source": "spider-train:1305",
+          "mutant": "SELECT T1.player_name FROM Player AS T1 JOIN Player_Attributes AS T2 ON T1.player_api_id = T2.player_api_id ORDER BY overall_rating DESC LIMIT 3",
+          "found": [
+            "wrong-result"
+          ]
+        },
+        {
+          "source": "spider-train:1306",
+          "mutant": "SELECT T1.player_name, T1.birthday FROM Player AS T1 JOIN Player_Attributes AS T2 ON T1.player_api_id = T2.player_api_id ORDER BY potential DESC LIMIT 5",
+          "found": [
+            "wrong-result"
+          ]
+        }
+      ]
+    },
+    "HAVING \u2192 WHERE": {
+      "applicable": 390,
+      "equivalent_excluded": 0,
+      "scored": 390,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop ORDER BY before LIMIT": {
+      "applicable": 1070,
+      "equivalent_excluded": 269,
+      "scored": 801,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    },
+    "drop GROUP BY column": {
+      "applicable": 630,
+      "equivalent_excluded": 12,
+      "scored": 618,
+      "static_recall": 1.0,
+      "graded_recall": 1.0,
+      "flagged_something": 1.0,
+      "missed_examples": []
+    }
+  }
+}
