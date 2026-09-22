@@ -9,6 +9,7 @@ Everything runs locally and costs nothing: open models served by [Ollama](https:
 ## Highlights
 
 - **Grounded feedback, not free-form guessing.** Deterministic analyzers decide *what* is wrong: 20+ misconception rules over the SQL syntax tree, SQLite error translation, database-aware checks, and result-set diffs against a reference. The LLM only decides *how to say it*, from a FACTS block it is told not to go beyond.
+- **Feedback quality is measured, too.** Mutation testing injects known bugs into ~7,000 correct Spider queries; the tutor names the right mistake for ~99% of them and flags under 2% of the correct queries. Held-out and post-hoc numbers are reported separately.
 - **An agentic text-to-SQL pipeline where each stage is measured.** Schema representation, value retrieval, few-shot RAG, execution-guided self-correction and self-consistency voting can each be toggled, and each is benchmarked on Spider with confidence intervals and significance tests.
 - **Our own fine-tuned model.** A LoRA adapter for Qwen2.5-Coder-1.5B, trained on Spider's train split on an M3 MacBook, compared with its base model through an identical serving path.
 - **Adaptive learning.** Bayesian Knowledge Tracing over a 16-skill prerequisite graph, with exercises chosen from the learner's zone of proximal development and explanation depth adapted to the inferred level.
@@ -127,6 +128,7 @@ flowchart LR
 - **Why a synthetic dataset for teaching?** On a 4-row table most wrong queries return the right answer by accident. The shop database is generated so that customers without orders, NULL emails, cancelled orders and duplicate names make each classic mistake change the result.
 - **Why grade by result equivalence?** Many different queries are correct. Grading runs both queries and compares result sets (multiset semantics, column order ignored, row order only when the reference sorts), the same rule used by the benchmark.
 - **Why report failures honestly?** In the ablation, the rich schema representation did *not* help on Spider, whose schemas are small and self-descriptive. The table keeps that row.
+- **Why mutation testing for the tutor?** Hand-written test cases only show that rules work on examples I thought of. Injecting bugs into thousands of real queries on databases I never looked at exposed four real detector flaws (for example, it suggested HAVING when the actual problem was a missing GROUP BY), and it also found errors in Spider's own reference SQL.
 - **Infrastructure failures are never scored.** If the model server errors, the harness retries and otherwise leaves the question unscored for a resumed run, so an outage cannot pass as a wrong answer.
 
 ## Run it
