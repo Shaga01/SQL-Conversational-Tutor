@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export PYTHONUNBUFFERED=1
+export HF_HUB_OFFLINE=1   # base model is already cached; no internet needed
 PY=.venv/bin/python
 FT=eval/finetune
 BASE_ID=Qwen/Qwen2.5-Coder-1.5B-Instruct
