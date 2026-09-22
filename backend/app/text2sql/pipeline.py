@@ -110,6 +110,28 @@ def raw_ddl(db_path: Path, tables: list[Table]) -> str:
     return "\n\n".join(sql for name, sql in rows if name in wanted)
 
 
+# Prompt format from the SQLCoder model card (defog/sqlcoder-7b-2). SQLCoder is a completion
+# model, so it is called raw, without a chat template, to evaluate it fairly.
+SQLCODER_TEMPLATE = """### Task
+Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+### Instructions
+- If you cannot answer the question with the available database schema, return 'I do not know'
+
+### Database Schema
+The query will run on a database with the following schema:
+{schema}
+
+### Answer
+Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+[SQL]
+"""
+
+
+def is_completion_model(model: str) -> bool:
+    return "sqlcoder" in model.lower()
+
+
 class Text2SQL:
     def __init__(self, config: PipelineConfig, client: OllamaClient | None = None,
                  examples: ExampleStore | None = None) -> None:
@@ -186,8 +208,20 @@ class Text2SQL:
             sql, result, error = new_sql, new_result, new_error
         return sql, result, error
 
+    def _run_completion_model(self, question: str, db_path: Path) -> PipelineResult:
+        t0 = time.perf_counter()
+        schema = raw_ddl(db_path, describe(db_path))
+        text = self.client.complete(SQLCODER_TEMPLATE.format(question=question, schema=schema),
+                                    model=self.config.model, max_tokens=self.config.max_tokens, stop=["[/SQL]"])
+        sql = extract_sql(text.replace("[/SQL]", ""))
+        result, error = self._execute(db_path, sql)
+        trace = [Step("generate", f"native completion prompt: {'ok' if not error else error[:120]}", _ms(t0), {"sql": sql})]
+        return PipelineResult(sql=sql, ok=not error, error=error, result=result, candidates=[sql], trace=trace)
+
     def run(self, question: str, db_path: Path) -> PipelineResult:
         cfg = self.config
+        if is_completion_model(cfg.model):
+            return self._run_completion_model(question, db_path)
         trace: list[Step] = []
         messages = self.build_prompt(question, db_path, trace)
 

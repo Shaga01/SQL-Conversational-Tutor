@@ -9,8 +9,8 @@ PY=.venv/bin/python
 for cfg in baseline rich_schema value_hints few_shot self_correct full full_linking; do
   $PY eval/run_eval.py --config "$cfg" --limit "$LIMIT"
 done
-for model in sqlcoder:7b llama3.1:8b; do
-  $PY eval/run_eval.py --config baseline --model "$model" --limit "$LIMIT"
-  $PY eval/run_eval.py --config self_correct --model "$model" --limit "$LIMIT"
-done
+# SQLCoder is a completion model: evaluated with its own documented prompt (single call).
+$PY eval/run_eval.py --config baseline --model sqlcoder:7b --limit "$LIMIT"
+$PY eval/run_eval.py --config baseline --model llama3.1:8b --limit "$LIMIT"
+$PY eval/run_eval.py --config self_correct --model llama3.1:8b --limit "$LIMIT"
 $PY eval/make_report.py

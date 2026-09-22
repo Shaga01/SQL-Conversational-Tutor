@@ -10,3 +10,5 @@ frontend/dist/
 *.egg-info/
 eval/finetune/data/
 eval/finetune/adapters/
+eval/finetune/fused/
+eval/finetune/Modelfile.*

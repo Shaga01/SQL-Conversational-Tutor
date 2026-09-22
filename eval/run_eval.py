@@ -29,7 +29,9 @@ sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "eval"))
 
 from app.compare import has_top_level_order_by, results_match  # noqa: E402
-from app.llm import OllamaClient  # noqa: E402
+import httpx  # noqa: E402
+
+from app.llm import LLMUnavailable, OllamaClient  # noqa: E402
 from app.sandbox import SandboxError, run_query  # noqa: E402
 from app.text2sql.examples import ExampleStore  # noqa: E402
 from app.text2sql.pipeline import PipelineConfig, Text2SQL  # noqa: E402
@@ -56,6 +58,20 @@ def configs(model: str) -> dict[str, PipelineConfig]:
         "full": vote,
         "full_linking": replace(vote, schema_linking=True),
     }
+
+
+class InfraError(Exception):
+    pass
+
+
+def run_with_retry(pipeline: Text2SQL, question: str, path: Path, attempts: int = 3):
+    for attempt in range(attempts):
+        try:
+            return pipeline.run(question, path)
+        except (httpx.HTTPError, LLMUnavailable) as exc:
+            if attempt == attempts - 1:
+                raise InfraError(f"{type(exc).__name__}: {exc}") from exc
+            time.sleep(5 * (attempt + 1))
 
 
 def load_questions(limit: int | None, seed: int) -> list[tuple[int, dict]]:
@@ -110,11 +126,15 @@ def main() -> None:
 
             t0 = time.perf_counter()
             try:
-                res = pipeline.run(item["question"], path)
+                res = run_with_retry(pipeline, item["question"], path)
                 pred_sql, pred_error = res.sql, res.error
                 correct = res.ok and res.result is not None and not res.result.truncated and results_match(
                     gold.rows, res.result.rows, has_top_level_order_by(gold_sql))
                 llm_calls = sum(1 for s in res.trace if s.stage in ("generate", "self_correct"))
+            except InfraError as exc:
+                # the model server failed, not the model: don't score it; a resumed run retries it
+                print(f"  ! skipped {idx} (infrastructure): {exc}", flush=True)
+                continue
             except Exception as exc:  # the harness must never die on one bad example
                 pred_sql, pred_error, correct, llm_calls = "", f"{type(exc).__name__}: {exc}", False, 0
             record = {

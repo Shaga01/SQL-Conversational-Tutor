@@ -102,6 +102,20 @@ class OllamaClient:
             self._cache.put(key, text)
         return text
 
+    def complete(self, prompt: str, *, model: str, temperature: float = 0.0, seed: int = 0,
+                 max_tokens: int = 400, stop: list[str] | None = None) -> str:
+        """Raw completion (no chat template) for models trained on their own prompt format."""
+        options = {"temperature": temperature, "seed": seed, "num_predict": max_tokens, "num_ctx": 8192,
+                   "stop": stop or []}
+        key = self._key("complete", model, prompt, options)
+        if self._cache and (hit := self._cache.get(key)) is not None:
+            return hit
+        text = self._post("/api/generate", {"model": model, "prompt": prompt, "raw": True, "stream": False,
+                                            "options": options})["response"]
+        if self._cache:
+            self._cache.put(key, text)
+        return text
+
     def chat_json(self, messages: list[dict[str, str]], schema: dict[str, Any], **kw: Any) -> dict[str, Any]:
         raw = self.chat(messages, schema=schema, **kw)
         try:
