@@ -104,3 +104,15 @@ def test_custom_database_lifecycle(client):
     db_id = r.json()["db_id"]
     assert client.get(f"/api/databases/{db_id}/schema").json()[0]["row_count"] == 2
     assert client.post("/api/databases", json={"name": "bad", "schema_sql": "ATTACH '/tmp/x' AS x;"}).status_code == 400
+
+
+def test_unrelated_question_during_exercise_is_not_blocked(client):
+    r = client.post("/api/chat", json={"message": "how many products are in each category",
+                                       "exercise_id": "outer-1"})
+    assert _sse(r.text)[0][1]["intent"] == "generate_sql"
+
+
+def test_empty_submission_is_not_graded(client):
+    r = client.post("/api/exercises/where-1/submit", json={"learner_id": "pytest-empty", "sql": "-- just a comment\n"})
+    assert r.status_code == 400
+    assert client.get("/api/learners/pytest-empty").json()["history"] == []

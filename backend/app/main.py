@@ -18,6 +18,7 @@ from .compare import diff_results, has_top_level_order_by
 from .config import settings
 from .llm import get_client
 from .sandbox import SandboxError, run_query
+from .sql_guard import strip_comments
 from .text2sql.examples import Example, ExampleStore
 from .text2sql.pipeline import PipelineConfig, Text2SQL
 from .tutor.conversation import Tutor, TutorContext
@@ -150,6 +151,8 @@ def submit(exercise_id: str, req: Submission) -> dict[str, Any]:
     ex = BY_ID.get(exercise_id)
     if ex is None:
         raise HTTPException(404, "Unknown exercise")
+    if not strip_comments(req.sql).strip().rstrip(";").strip():
+        raise HTTPException(400, "Write a query before submitting.")  # not graded, mastery untouched
     path = resolve_db(ex.db_id)
     tables = describe(path)
     expected = run_query(path, ex.solution, max_rows=10_000)

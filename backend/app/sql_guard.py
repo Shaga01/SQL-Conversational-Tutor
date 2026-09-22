@@ -7,6 +7,7 @@ understand structure. Here we parse with sqlglot and inspect the AST instead.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 
@@ -46,8 +47,8 @@ def parse_sql(sql: str) -> exp.Expression:
 
 
 def check_read_only(sql: str) -> GuardResult:
-    if not sql or not sql.strip():
-        return GuardResult(False, "Query is empty.")
+    if not strip_comments(sql).strip().rstrip(";").strip():
+        return GuardResult(False, "The query is empty - write a SELECT statement (lines starting with -- are comments).")
     if len(sql) > settings.max_sql_chars:
         return GuardResult(False, f"Query is longer than {settings.max_sql_chars} characters.")
 
@@ -64,6 +65,10 @@ def check_read_only(sql: str) -> GuardResult:
             return GuardResult(False, f"{node.key.upper()} is not allowed inside a read-only query.")
 
     return GuardResult(True, tree=tree)
+
+
+def strip_comments(sql: str) -> str:
+    return re.sub(r"--[^\n]*|/\*.*?\*/", "", sql, flags=re.S)
 
 
 def friendly_syntax_error(sql: str) -> str:

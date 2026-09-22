@@ -82,15 +82,16 @@ class Tutor:
 
     # ------------------------------------------------------------------ intent
 
-    def classify(self, message: str, ctx: TutorContext) -> tuple[str, str]:
-        """Return (intent, sql_found_in_message)."""
+    def classify(self, message: str, ctx: TutorContext) -> tuple[str, str, bool]:
+        """Return (intent, sql_found_in_message, is_about_the_active_exercise)."""
         if block := _CODE_BLOCK.search(message):
-            return "explain_sql", block.group(1).strip()
+            return "explain_sql", block.group(1).strip(), False
         if _SQL_START.match(message):
-            return "explain_sql", message.strip()
+            return "explain_sql", message.strip(), False
         low = message.lower()
         if ctx.exercise and any(w in low for w in ("hint", "stuck", "help", "don't know", "dont know", "no idea")):
-            return "hint", ""
+            return "hint", "", True
+        exercise_line = f"\nThe learner is currently working on this exercise: {ctx.exercise.prompt}" if ctx.exercise else ""
         try:
             out = self.client.chat_json(
                 [{"role": "system", "content": "Classify the user's message to a SQL tutor. Intents:\n"
@@ -98,18 +99,23 @@ class Tutor:
                   "explain_sql = asks to explain or review a query\n"
                   "concept = asks about a SQL concept or syntax in general (e.g. 'what is a LEFT JOIN?')\n"
                   "hint = asks for help with the current exercise\n"
-                  "other = anything else"},
+                  "other = anything else\n"
+                  "Also set about_active_exercise to true only if the message asks for (part of) the answer to the "
+                  "learner's current exercise." + exercise_line},
                  {"role": "user", "content": message}],
-                schema={"type": "object", "properties": {"intent": {"type": "string", "enum": INTENTS}},
-                        "required": ["intent"]},
-                model=self.pipeline_config.model, max_tokens=20)
+                schema={"type": "object", "properties": {"intent": {"type": "string", "enum": INTENTS},
+                                                         "about_active_exercise": {"type": "boolean"}},
+                        "required": ["intent", "about_active_exercise"]},
+                model=self.pipeline_config.model, max_tokens=40)
             intent = out.get("intent", "other")
+            about = bool(out.get("about_active_exercise")) and ctx.exercise is not None
         except LLMUnavailable:
             asks_for_data = re.search(r"\b(which|who|how many|list|show|find\w*|top|average|total|write|query|get)\b", low)
             intent = "generate_sql" if asks_for_data and not low.startswith(("what is", "what's", "explain")) else "concept"
+            about = ctx.exercise is not None and _overlap(message, ctx.exercise.prompt) >= 0.3
         if intent == "explain_sql" and ctx.current_sql:
-            return intent, ctx.current_sql
-        return (intent if intent in INTENTS else "other"), ""
+            return intent, ctx.current_sql, about
+        return (intent if intent in INTENTS else "other"), "", about
 
     # ------------------------------------------------------------------ fact gathering
 
@@ -146,9 +152,9 @@ class Tutor:
         return turn
 
     def build_turn(self, message: str, ctx: TutorContext, hint_level: int = 0) -> TutorTurn:
-        intent, sql = self.classify(message, ctx)
+        intent, sql, about_exercise = self.classify(message, ctx)
 
-        if intent == "generate_sql" and ctx.exercise is not None:
+        if intent == "generate_sql" and about_exercise:
             # answer-leak guard: don't let the chat solve the active exercise
             turn = TutorTurn("hint", note="An exercise is active, so I'll guide you instead of writing the answer.")
             intent = "hint"
@@ -221,6 +227,28 @@ class Tutor:
             yield from self.client.stream(self.messages(message, ctx, turn))
         except LLMUnavailable:
             yield fallback_text(turn)
+
+
+_STOPWORDS = {"the", "a", "an", "of", "and", "or", "who", "which", "that", "in", "on", "for", "to", "is", "are", "with",
+              "find", "show", "list", "all", "each", "their", "have", "has", "me", "write", "query", "sql"}
+
+
+def _overlap(a: str, b: str) -> float:
+    """Share of the exercise's content words that also appear in the message."""
+    def stems(text: str) -> set[str]:
+        out = set()
+        for w in re.findall(r"[a-z]+", text.lower()):
+            if w in _STOPWORDS or len(w) < 3:
+                continue
+            for suffix in ("ing", "ed", "es", "s"):  # crude stemming: "ordered" ~ "order"
+                if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+                    w = w[: -len(suffix)]
+                    break
+            out.add(w)
+        return out
+
+    wa, wb = stems(a), stems(b)
+    return len(wa & wb) / len(wb) if wb else 0.0
 
 
 def fallback_text(turn: TutorTurn) -> str:
