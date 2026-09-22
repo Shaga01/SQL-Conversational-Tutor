@@ -98,10 +98,15 @@ def _install_limits(conn: sqlite3.Connection, timeout_s: float) -> None:
     conn.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
 
 
+def _lenient_text(raw: bytes) -> str:
+    return raw.decode("utf-8", errors="replace")
+
+
 def open_readonly(db_path: Path, timeout_s: float | None = None) -> sqlite3.Connection:
     if not db_path.exists():
         raise QueryFailed(f"Database not found: {db_path.name}")
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, check_same_thread=False)
+    conn.text_factory = _lenient_text
     conn.enable_load_extension(False)
     _install_limits(conn, timeout_s if timeout_s is not None else settings.query_timeout_s)
     conn.set_authorizer(_read_authorizer)

@@ -96,6 +96,7 @@ def _describe_cached(db_path_str: str, mtime: float) -> tuple[Table, ...]:
     db_path = Path(db_path_str)
     descriptions = _descriptions_for(db_path)
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.text_factory = lambda raw: raw.decode("utf-8", errors="replace")
     try:
         names = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
