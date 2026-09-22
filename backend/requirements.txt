@@ -1,4 +1,5 @@
-fastapi
-uvicorn[standard]
-sqlglot
-requests
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlglot>=25
+httpx>=0.27
+numpy>=1.26
