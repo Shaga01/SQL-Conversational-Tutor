@@ -1,6 +1,6 @@
 # Conversational SQL Tutor (Capstone MVP)
 
-Full-stack, free-to-run SQL tutoring system based on your proposal:
+Full-stack, free-to-run SQL tutoring system:
 - React frontend with chat + SQL editor + schema + result table
 - FastAPI backend with sandboxed SQLite execution (SELECT-only)
 - Explanation-first feedback with beginner/intermediate/advanced modes
