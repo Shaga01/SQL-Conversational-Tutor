@@ -1,0 +1,27 @@
+# LoRA fine-tuning of Qwen2.5-Coder-1.5B-Instruct for text-to-SQL, on Apple Silicon with MLX.
+# Run:  .venv/bin/python -m mlx_lm lora --config eval/finetune/lora.yaml
+model: Qwen/Qwen2.5-Coder-1.5B-Instruct
+train: true
+data: eval/finetune/data
+adapter_path: eval/finetune/adapters
+fine_tune_type: lora
+mask_prompt: true          # loss only on the SQL answer, not on the (long) schema prompt
+num_layers: 16             # adapt the top 16 of 28 transformer blocks
+lora_parameters:
+  rank: 16
+  scale: 20.0
+  dropout: 0.05
+batch_size: 4
+iters: 1200                # ~0.75 epoch over 6.4k examples
+learning_rate: 1.0e-4
+lr_schedule:
+  name: cosine_decay
+  warmup: 60
+  arguments: [1.0e-4, 1200, 1.0e-6]
+max_seq_length: 2048
+grad_checkpoint: true      # trade compute for memory so it fits in 16 GB
+steps_per_report: 20
+steps_per_eval: 200
+val_batches: 40
+save_every: 400
+seed: 0

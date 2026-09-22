@@ -8,3 +8,5 @@ frontend/dist/
 ~$*
 .pytest_cache/
 *.egg-info/
+eval/finetune/data/
+eval/finetune/adapters/
