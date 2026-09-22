@@ -1,0 +1,21 @@
+# Runs the tutor in containers. Ollama runs natively on the host so it can use the GPU
+# (Docker on macOS has no Metal access):  `ollama serve`  then  `docker compose up --build`
+services:
+  backend:
+    build: ./backend
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - tutor-data:/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  tutor-data:
