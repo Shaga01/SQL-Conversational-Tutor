@@ -56,6 +56,9 @@ class _Scope:
         owners = [t for t in self.in_scope if any(c.name.lower() == col.name.lower() for c in self.tables[t].columns)]
         return owners[0] if len(owners) == 1 else None
 
+    def alias_for(self, table: str) -> str:
+        return next((a for a, t in self.alias.items() if t == table), table)
+
     def column_type(self, col: exp.Column) -> str:
         t = self.table_of(col)
         if not t:
@@ -115,9 +118,7 @@ def explain_error(error: str, tables: list[Table], sql: str = "") -> list[Findin
                         f"name or alias, e.g. `{owners[0][0] if owners else 't'}.{name}`.", name)]
 
     if "misuse of aggregate" in low:
-        return [Finding("aggregate-in-where", "error", "having", "Aggregate used in WHERE",
-                        "Aggregate functions (COUNT, SUM, AVG...) are computed after rows are grouped, but WHERE runs "
-                        "before grouping. Filter on aggregates with HAVING instead.", "")]
+        return [_aggregate_misuse(sql)]
 
     if "group by clause is required before having" in low or "having clause on a non-aggregate query" in low:
         return [Finding("having-without-group", "error", "having", "HAVING without GROUP BY",
@@ -132,6 +133,24 @@ def explain_error(error: str, tables: list[Table], sql: str = "") -> list[Findin
                         "pairs every row with every other row (a Cartesian product).", "")]
 
     return [Finding("sql-error", "error", "select", "SQL error", error, "")]
+
+
+def _aggregate_misuse(sql: str) -> Finding:
+    """SQLite says 'misuse of aggregate' for several different mistakes; find which one."""
+    try:
+        tree = parse_sql(sql)
+    except Exception:
+        tree = None
+    select = tree.find(exp.Select) if tree is not None else None
+    where = select.args.get("where") if select is not None else None
+    if select is not None and (where is None or not where.find(exp.AggFunc)) and select.args.get("group") is None:
+        return Finding("missing-group-by", "error", "group_by", "Aggregate without GROUP BY",
+                       "The query uses an aggregate such as COUNT(...) outside the SELECT list (for example in "
+                       "ORDER BY) but has no GROUP BY, so there are no groups to aggregate over. Add GROUP BY "
+                       "with the column(s) you want one result row per.", "")
+    return Finding("aggregate-in-where", "error", "having", "Aggregate used in WHERE",
+                   "Aggregate functions (COUNT, SUM, AVG...) are computed after rows are grouped, but WHERE runs "
+                   "before grouping. Filter on aggregates with HAVING instead.", "")
 
 
 _CLAUSES = ["select", "from", "where", "group by", "having", "order by", "limit"]
@@ -203,56 +222,86 @@ def _null_comparisons(select: exp.Select) -> list[Finding]:
 def _join_problems(select: exp.Select, scope: _Scope, tree_sql: str) -> list[Finding]:
     out = []
     joins = select.args.get("joins") or []
-    where = select.args.get("where")
-    for j in joins:
-        kind = (j.args.get("kind") or "").upper()
-        on = j.args.get("on")
-        has_condition = (on is not None and not (isinstance(on, exp.Boolean) and on.this is True)) or j.args.get("using")
-        explicit_cross = kind == "CROSS" and re.search(r"\bcross\s+join\b", tree_sql, re.I)
-        if has_condition or explicit_cross:
-            continue
-        right = j.this.alias_or_name.lower() if isinstance(j.this, exp.Table) else ""
-        linked = False
-        if where is not None:
-            for eq in _outside_subqueries(where, select, exp.EQ):
-                if isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column):
-                    if right in {(eq.left.table or "").lower(), (eq.right.table or "").lower()}:
-                        linked = True
-        if not linked:
-            out.append(Finding("cartesian-join", "error", "inner_join", "Join without a condition",
-                               f"`{_snippet(j)}` has no ON condition, so every row is paired with every row of the other "
-                               "table (a Cartesian product). Add `ON <key> = <foreign key>`.", _snippet(j)))
+    from_ = select.args.get("from_") or select.args.get("from")
+    if joins and from_ is not None:
+        # tables are nodes, join/WHERE equalities are edges; anything unreachable from the
+        # FROM table is combined with it as a Cartesian product
+        parent: dict[str, str] = {}
 
-    # wrong join key: equality between two tables that are FK-related, but not via the FK columns
+        def find(x: str) -> str:
+            parent.setdefault(x, x)
+            while parent[x] != x:
+                x = parent[x]
+            return x
+
+        def alias_of(col: exp.Column) -> str | None:
+            if col.table:
+                return col.table.lower()
+            table = scope.table_of(col)
+            return scope.alias_for(table) if table else None
+
+        root = from_.this.alias_or_name.lower()
+        for eq in _join_equalities(select, or_in_on=True):
+            a, b = alias_of(eq.left), alias_of(eq.right)
+            if a and b and a != b:
+                parent[find(a)] = find(b)
+        for j in joins:
+            kind = (j.args.get("kind") or "").upper()
+            if j.args.get("using") or (kind == "CROSS" and re.search(r"\bcross\s+join\b", tree_sql, re.I)):
+                parent[find(j.this.alias_or_name.lower())] = find(root)  # explicit / USING: intentional
+        for j in joins:
+            if find(j.this.alias_or_name.lower()) != find(root):
+                out.append(Finding("cartesian-join", "error", "inner_join", "Join without a condition",
+                                   f"`{_snippet(j)}` is not connected to the other tables by any join condition, so "
+                                   "every row is paired with every row (a Cartesian product). Add "
+                                   "`ON <key> = <foreign key>`.", _snippet(j)))
+
+    # wrong join key: two FK-related tables are joined, but no condition uses the FK columns
     for j in joins:
         on = j.args.get("on")
         if on is None or isinstance(on, exp.Boolean):
             continue
+        by_pair: dict[frozenset, list[tuple[exp.EQ, bool]]] = {}
         for eq in on.find_all(exp.EQ):
             if not (isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column)):
                 continue
             ta, tb = scope.table_of(eq.left), scope.table_of(eq.right)
-            if not ta or not tb or ta == tb:
+            if not ta or not tb or ta == tb or not _fk_pairs(scope.tables, ta, tb):
                 continue
-            fk_pairs = _fk_pairs(scope.tables, ta, tb)
-            if not fk_pairs:
-                continue
+            if not (_is_key_like(scope.tables[ta], eq.left.name) and _is_key_like(scope.tables[tb], eq.right.name)):
+                continue  # e.g. state.capital = city.city_name: a legitimate non-FK relationship
             used = {(ta, eq.left.name.lower(), tb, eq.right.name.lower()), (tb, eq.right.name.lower(), ta, eq.left.name.lower())}
-            if not used & fk_pairs:
-                a, ac, b, bc = sorted(fk_pairs)[0]
-                out.append(Finding("wrong-join-key", "warning", "inner_join", "Suspicious join key",
-                                   f"`{_snippet(eq)}` compares columns that are not linked. The relationship between "
-                                   f"{ta} and {tb} is `{a}.{ac} = {b}.{bc}`.", _snippet(eq)))
+            by_pair.setdefault(frozenset((ta, tb)), []).append((eq, bool(used & _fk_pairs(scope.tables, ta, tb))))
+        for pair, eqs in by_pair.items():
+            if any(uses_fk for _, uses_fk in eqs):
+                continue  # the proper link is there; extra conditions are intentional
+            eq = eqs[0][0]
+            ta, tb = sorted(pair)
+            a, ac, b, bc = sorted(_fk_pairs(scope.tables, ta, tb))[0]
+            out.append(Finding("wrong-join-key", "warning", "inner_join", "Suspicious join key",
+                               f"`{_snippet(eq)}` compares columns that are not linked. The relationship between "
+                               f"{ta} and {tb} is `{a}.{ac} = {b}.{bc}`.", _snippet(eq)))
     return out
 
 
 def _fk_pairs(tables: dict[str, Table], ta: str, tb: str) -> set[tuple[str, str, str, str]]:
+    """Declared foreign keys between two tables, ignoring dangling ones (target column missing)."""
     pairs = set()
     for src, dst in ((ta, tb), (tb, ta)):
+        dst_cols = {c.name.lower() for c in tables[dst].columns}
         for c in tables[src].columns:
-            if c.references and c.references.split(".")[0].lower() == dst:
-                pairs.add((src, c.name.lower(), dst, c.references.split(".")[1].lower()))
+            if not c.references:
+                continue
+            ref_table, _, ref_col = c.references.partition(".")
+            if ref_table.lower() == dst and ref_col.lower() in dst_cols:
+                pairs.add((src, c.name.lower(), dst, ref_col.lower()))
     return pairs
+
+
+def _is_key_like(table: Table, column: str) -> bool:
+    col = next((c for c in table.columns if c.name.lower() == column.lower()), None)
+    name = column.lower()
+    return bool(col and (col.pk or col.references)) or name == "id" or name.endswith("_id")
 
 
 def _grouping_problems(select: exp.Select, scope: _Scope) -> list[Finding]:
@@ -263,8 +312,7 @@ def _grouping_problems(select: exp.Select, scope: _Scope) -> list[Finding]:
     if (group is not None or has_agg) and not has_window:
         grouped = {e.sql().lower() for e in (group.expressions if group else [])}
         grouped_names = {e.name.lower() for e in (group.expressions if group else []) if isinstance(e, exp.Column)}
-        grouped_tables_by_pk = {scope.table_of(e) for e in (group.expressions if group else [])
-                                if isinstance(e, exp.Column) and scope.table_of(e) and scope.is_pk(scope.table_of(e), e.name)}
+        is_determined = _determined_columns(select, scope, group.expressions if group else [])
         aliases = {e.alias.lower() for e in select.expressions if isinstance(e, exp.Alias)}
         for e in select.expressions:
             inner = e.this if isinstance(e, exp.Alias) else e
@@ -272,8 +320,8 @@ def _grouping_problems(select: exp.Select, scope: _Scope) -> list[Finding]:
                 continue
             if inner.sql().lower() in grouped or inner.name.lower() in grouped_names or inner.name.lower() in aliases & grouped_names:
                 continue
-            if scope.table_of(inner) in grouped_tables_by_pk:
-                continue  # functionally dependent on a grouped primary key - fine
+            if is_determined(inner):
+                continue  # functionally dependent on the grouping keys - fine
             out.append(Finding("ungrouped-column", "warning", "group_by", "Column not in GROUP BY",
                                f"`{_snippet(inner)}` is neither aggregated nor listed in GROUP BY. Most databases reject "
                                "this; SQLite silently picks a value from an arbitrary row of each group. Add it to "
@@ -290,6 +338,83 @@ def _grouping_problems(select: exp.Select, scope: _Scope) -> list[Finding]:
                            "This HAVING condition does not use an aggregate, so it could be a WHERE condition, which "
                            "filters earlier and is usually faster.", _snippet(having)))
     return out
+
+
+def _col_key(col: exp.Column, scope: _Scope) -> tuple[str, str] | None:
+    table = scope.table_of(col)
+    return (table, col.name.lower()) if table else None
+
+
+def _join_equalities(select: exp.Select, or_in_on: bool = False) -> list[exp.EQ]:
+    """column = column equalities from every ON clause and the (non-OR) WHERE of one SELECT.
+
+    ``or_in_on`` keeps equalities under OR inside ON clauses: they still *link* two tables
+    (``ON a.x = b.y OR a.x = b.z``) even though they do not make columns *equal*.
+    """
+    nodes: list[exp.Expression] = [j.args["on"] for j in select.args.get("joins") or [] if j.args.get("on") is not None]
+    if select.args.get("where") is not None:
+        nodes.append(select.args["where"])
+    out = []
+    for node in nodes:
+        for eq in node.find_all(exp.EQ):
+            in_on = not isinstance(node, exp.Where)
+            if eq.find_ancestor(exp.Select) is select and (not eq.find_ancestor(exp.Or) or (or_in_on and in_on)) \
+                    and isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column):
+                out.append(eq)
+    return out
+
+
+def _determined_columns(select: exp.Select, scope: _Scope, group_exprs):
+    """Predicate: is this column functionally determined by the GROUP BY keys?
+
+    Computes the closure of the functional dependencies implied by the query:
+      * join/WHERE equalities make columns interchangeable (t1.a = t2.b);
+      * a column compared to a constant in WHERE is fixed within the result;
+      * once a table's primary key is determined, all of its columns are, which can in
+        turn determine further tables through join equalities (iterate to a fixpoint).
+    """
+    parent: dict = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for eq in _join_equalities(select):
+        a, b = _col_key(eq.left, scope), _col_key(eq.right, scope)
+        if a and b:
+            parent[find(a)] = find(b)
+
+    known = {find(k) for e in group_exprs if isinstance(e, exp.Column) and (k := _col_key(e, scope))}
+    where = select.args.get("where")
+    if where is not None:  # col = 'constant'
+        for eq in where.find_all(exp.EQ):
+            if eq.find_ancestor(exp.Or) or eq.find_ancestor(exp.Select) is not select:
+                continue
+            col = eq.left if isinstance(eq.left, exp.Column) else eq.right
+            other = eq.right if col is eq.left else eq.left
+            if isinstance(col, exp.Column) and isinstance(other, exp.Literal) and (k := _col_key(col, scope)):
+                known.add(find(k))
+
+    determined: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for table in scope.in_scope - determined:
+            cols = scope.tables[table].columns
+            pks = [c.name.lower() for c in cols if c.pk]
+            if pks and all(find((table, pk)) in known for pk in pks):
+                determined.add(table)
+                known |= {find((table, c.name.lower())) for c in cols}
+                changed = True
+
+    def is_determined(col: exp.Column) -> bool:
+        key = _col_key(col, scope)
+        return key is not None and find(key) in known
+
+    return is_determined
 
 
 def _left_join_problems(select: exp.Select, scope: _Scope) -> list[Finding]:

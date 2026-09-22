@@ -151,6 +151,8 @@ def main() -> None:
         lines += ["", "Training data: 6,359 Spider **train** questions; validation holds out 6 whole databases. "
                   "The dev set used above is never seen in training.", ""]
 
+    lines += _detector_section()
+
     lines += ["## Reproduce", "", "```bash", "eval/run_ablation.sh 200            # ladder + model comparison (resumable)",
               "eval/finetune/run_finetune.sh       # LoRA train → fuse → import → evaluate", "python eval/make_report.py", "```", "",
               "Difficulty buckets use a sqlglot port of the official Spider hardness rules; bucket sizes on the full dev set are "
@@ -159,6 +161,49 @@ def main() -> None:
     (ROOT / "eval" / "RESULTS.md").write_text(report)
     _sync_readme(report)
     print(report)
+
+
+def _detector_section() -> list[str]:
+    """Mutation-based evaluation of the misconception detector (eval/misconception_eval.py)."""
+    def load(name: str) -> dict | None:
+        path = RESULTS / f"misconceptions_{name}.json"
+        return json.loads(path.read_text()) if path.exists() else None
+
+    rows = [
+        ("Development: Spider dev + exercises (used while building the detector)", load("dev")),
+        ("Held-out: Spider train, 140 DBs — first detector version", load("train_before_fixes")),
+        ("Held-out: Spider train_others, 6 DBs — before any fix", load("others_heldout")),
+        ("Post-hoc: Spider train, final detector ‡", load("train")),
+        ("Post-hoc: Spider train_others, final detector ‡", load("others")),
+    ]
+    rows = [(label, r) for label, r in rows if r]
+    if not rows:
+        return []
+    out = ["## Tutor feedback quality: does the misconception detector name the right mistake?", "",
+           "Known-correct queries are mutated with one injected bug each (e.g. LEFT JOIN → JOIN, IS NULL → = NULL, "
+           "dropped ON clause); *recall* is the share of mutants for which the tutor reports the matching misconception. "
+           "*Grading* mode includes the result diff against the reference (exercise submissions); *static* mode is "
+           "free practice with no reference. Mutants that return the correct result anyway are excluded. The last "
+           "column is the share of the **unmutated, correct** queries that get any correctness warning.", "",
+           "| Query set | mutants | recall (grading) | recall (static) | correct queries flagged |",
+           "|---|---:|---:|---:|---:|"]
+    for label, r in rows:
+        out.append(f"| {label} | {r['mutants_scored']:,} | {pct(r['micro_graded_recall'])}% | "
+                   f"{pct(r['micro_static_recall'])}% | {pct(r['clean_flagged_rate'])}% of {r['clean_queries']:,} |")
+    detail = load("train") or rows[0][1]
+    out += ["", "‡ After fixing false-positive patterns found by inspecting flagged held-out queries (functional-dependency "
+            "closure for GROUP BY, join-graph connectivity, dangling foreign keys, key-like join columns), so these rows "
+            "are not held-out. A manual sample of the remaining flags on correct Spider queries showed mostly genuine "
+            "problems in the reference SQL: Cartesian joins, wrong join keys, case-mismatched literals that return no "
+            "rows, and non-deterministic GROUP BY columns.", "",
+            f"Per injected bug (Spider train, {detail['mutants_scored']:,} mutants):", "",
+            "| Injected bug | mutants | recall (grading) | recall (static) |", "|---|---:|---:|---:|"]
+    for name, v in sorted(detail["operators"].items(), key=lambda kv: -kv[1]["scored"]):
+        if v["scored"]:
+            out.append(f"| {name} | {v['scored']:,} | {pct(v['graded_recall'])}% | {pct(v['static_recall'])}% |")
+    out += ["", "Static recall is 0% for dropped DISTINCT and LEFT → INNER by design: without a reference solution those "
+            "queries are valid SQL, and only the result diff reveals the mistake.", ""]
+    return out
 
 
 def _sync_readme(report: str) -> None:
