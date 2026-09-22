@@ -447,7 +447,8 @@ def _left_join_problems(select: exp.Select, scope: _Scope) -> list[Finding]:
 def _misc(select: exp.Select, scope: _Scope, tree: exp.Expression) -> list[Finding]:
     out = []
     owner = tree if isinstance(tree, exp.SetOperation) else select
-    if owner.args.get("limit") is not None and owner.args.get("order") is None and select is (tree if isinstance(tree, exp.Select) else select):
+    is_top_level = select is tree or isinstance(tree, exp.SetOperation)
+    if is_top_level and owner.args.get("limit") is not None and owner.args.get("order") is None:
         out.append(Finding("limit-without-order", "warning", "order_limit", "LIMIT without ORDER BY",
                            "Without ORDER BY the database may return rows in any order, so LIMIT picks arbitrary rows. "
                            "If you want the 'top' rows, sort first.", _snippet(owner.args["limit"])))

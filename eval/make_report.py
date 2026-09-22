@@ -99,7 +99,7 @@ def main() -> None:
                          + f" | {r['mean_llm_calls']} |")
             prev = r
         n_by = rows[0][1]["by_hardness"]
-        lines += ["", f"Questions per difficulty bucket: " + ", ".join(f"{k} {n_by.get(k, {}).get('n', 0)}" for k in HARDNESS)
+        lines += ["", "Questions per difficulty bucket: " + ", ".join(f"{k} {n_by.get(k, {}).get('n', 0)}" for k in HARDNESS)
                   + ". Latency is not reported because the evaluation cache replays identical calls across rows.", ""]
         base, best = rows[0][1], max((r for _, r in rows), key=lambda r: r["overall"]["ex"])
         lines += [f"Best configuration vs baseline: {pct(base['overall']['ex'])}% → {pct(best['overall']['ex'])}% "

@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from app.catalog import create_session_db, resolve_db
 from app.sandbox import QueryFailed, QueryRejected, QueryTimeout, SandboxError, run_query
 from app.sql_guard import check_read_only

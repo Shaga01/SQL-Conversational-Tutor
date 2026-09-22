@@ -1,0 +1,13 @@
+line-length = 140
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "B", "I"]
+
+[lint.per-file-ignores]
+# scripts put the backend on sys.path before importing it
+"eval/*.py" = ["E402"]
+"eval/finetune/*.py" = ["E402"]
+# exercise prompts, hints and test fixtures are prose/data
+"backend/app/tutor/exercises.py" = ["E501"]
+"backend/tests/*.py" = ["E501"]

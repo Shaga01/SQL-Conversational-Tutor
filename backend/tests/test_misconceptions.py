@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.catalog import describe, resolve_db
 from app.sandbox import SandboxError, run_query
 from app.tutor.misconceptions import analyze_query, explain_error

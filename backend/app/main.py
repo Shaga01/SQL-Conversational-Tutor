@@ -12,8 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from .catalog import (UnknownDatabase, create_session_db, describe, ensure_builtin_datasets, list_databases,
-                      resolve_db, schema_json)
+from .catalog import UnknownDatabase, create_session_db, describe, ensure_builtin_datasets, list_databases, resolve_db, schema_json
 from .compare import diff_results, has_top_level_order_by
 from .config import settings
 from .llm import get_client

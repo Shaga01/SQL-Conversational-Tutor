@@ -155,7 +155,7 @@ class OllamaClient:
         for start in range(0, len(missing), 64):
             batch = missing[start:start + 64]
             vectors = self._post("/api/embed", {"model": model, "input": [texts[i] for i in batch]})["embeddings"]
-            for i, vec in zip(batch, vectors):
+            for i, vec in zip(batch, vectors, strict=True):
                 out[i] = vec
                 if self._cache:
                     self._cache.put(self._key("embed", model, texts[i]), json.dumps(vec))

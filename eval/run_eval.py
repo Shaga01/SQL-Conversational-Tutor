@@ -28,9 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "eval"))
 
-from app.compare import has_top_level_order_by, results_match  # noqa: E402
 import httpx  # noqa: E402
-
+from app.compare import has_top_level_order_by, results_match  # noqa: E402
 from app.llm import LLMUnavailable, OllamaClient  # noqa: E402
 from app.sandbox import SandboxError, run_query  # noqa: E402
 from app.text2sql.examples import ExampleStore  # noqa: E402

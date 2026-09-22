@@ -106,9 +106,11 @@ def diff_results(expected: Sequence[Row], actual: Sequence[Row], expected_cols: 
         d.order_only = True
         d.summary = "You have the right rows, but in the wrong order."
     elif len(actual) > len(expected) and not d.missing:
-        d.summary = f"Your result has {len(actual) - len(expected)} extra row(s) - a filter or join condition may be missing, or duplicates were not removed."
+        d.summary = (f"Your result has {len(actual) - len(expected)} extra row(s) - a filter or join condition may be "
+                     "missing, or duplicates were not removed.")
     elif len(actual) < len(expected) and not d.extra:
-        d.summary = f"Your result is missing {len(expected) - len(actual)} row(s) - a filter may be too strict, or an INNER JOIN dropped unmatched rows."
+        d.summary = (f"Your result is missing {len(expected) - len(actual)} row(s) - a filter may be too strict, or an "
+                     "INNER JOIN dropped unmatched rows.")
     elif len(actual) == len(expected):
         d.summary = "Same number of rows, but some values differ - check your calculations, grouping, or selected columns."
     else:
