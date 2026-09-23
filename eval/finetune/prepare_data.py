@@ -23,7 +23,8 @@ from app.text2sql.pipeline import PipelineConfig, Text2SQL  # noqa: E402
 
 SPIDER = ROOT / "eval" / "data" / "spider_data"
 OUT = ROOT / "eval" / "finetune" / "data"
-MAX_CHARS = 6500  # ~1800 tokens; longer prompts are dropped to keep --max-seq-length 2048
+MAX_TOKENS = 1400  # must stay below max_seq_length in lora.yaml, or the SQL answer gets truncated away
+TOKENIZER = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 
 # must match the "value_hints" rung of the ablation ladder (see eval/run_eval.py)
 PROMPT_CONFIG = PipelineConfig(rich_schema=True, value_hints=True, few_shot=0, self_correct_rounds=0)
@@ -31,6 +32,9 @@ PROMPT_CONFIG = PipelineConfig(rich_schema=True, value_hints=True, few_shot=0, s
 
 def main() -> None:
     items = json.loads((SPIDER / "train_spider.json").read_text())
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER)
     builder = Text2SQL(PROMPT_CONFIG, client=None)  # build_prompt needs no LLM without linking/few-shot
     rows, skipped = [], {"gold_fails": 0, "too_long": 0}
     for n, item in enumerate(items):
@@ -41,12 +45,14 @@ def main() -> None:
             skipped["gold_fails"] += 1
             continue
         messages = builder.build_prompt(item["question"], db, trace=[])
-        if sum(len(m["content"]) for m in messages) > MAX_CHARS:
+        sql = " ".join(item["query"].split())  # normalise whitespace
+        full = messages + [{"role": "assistant", "content": f"```sql\n{sql}\n```"}]
+        # count real tokens: an example cut off before its answer has no loss tokens (0/0 = NaN)
+        n_tokens = len(tokenizer(tokenizer.apply_chat_template(full, tokenize=False))["input_ids"])
+        if n_tokens > MAX_TOKENS:
             skipped["too_long"] += 1
             continue
-        sql = " ".join(item["query"].split())  # normalise whitespace
-        rows.append({"messages": messages + [{"role": "assistant", "content": f"```sql\n{sql}\n```"}],
-                     "db_id": item["db_id"]})
+        rows.append({"messages": full, "db_id": item["db_id"]})
         if n % 1000 == 0:
             print(f"  {n}/{len(items)}")
 
