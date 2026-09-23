@@ -14,3 +14,4 @@ eval/finetune/fused/
 eval/finetune/Modelfile.*
 eval/finetune/base-4bit/
 eval/finetune/base-roundtrip/
+interview-guide/
