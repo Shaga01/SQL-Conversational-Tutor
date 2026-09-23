@@ -1,0 +1,69 @@
+{
+  "run": "self_correct__sqltutor-lora-1.5b__200",
+  "config_name": "self_correct",
+  "model": "sqltutor-lora-1.5b",
+  "limit": 200,
+  "seed": 42,
+  "config": {
+    "model": "sqltutor-lora-1.5b",
+    "rich_schema": true,
+    "schema_linking": false,
+    "value_hints": true,
+    "few_shot": 3,
+    "self_correct_rounds": 2,
+    "n_samples": 1,
+    "sample_temperature": 0.8,
+    "max_tokens": 400
+  },
+  "overall": {
+    "n": 200,
+    "ex": 0.295
+  },
+  "by_hardness": {
+    "easy": {
+      "n": 46,
+      "ex": 0.5435
+    },
+    "medium": {
+      "n": 92,
+      "ex": 0.3043
+    },
+    "hard": {
+      "n": 30,
+      "ex": 0.1
+    },
+    "extra": {
+      "n": 32,
+      "ex": 0.0938
+    }
+  },
+  "by_feature": {
+    "aggregate": {
+      "n": 101,
+      "ex": 0.3168
+    },
+    "group_by": {
+      "n": 50,
+      "ex": 0.16
+    },
+    "join": {
+      "n": 81,
+      "ex": 0.0864
+    },
+    "order_by": {
+      "n": 55,
+      "ex": 0.2364
+    },
+    "set_op": {
+      "n": 12,
+      "ex": 0.1667
+    },
+    "subquery": {
+      "n": 17,
+      "ex": 0.0588
+    }
+  },
+  "errors": 120,
+  "mean_latency_s": 10.18,
+  "mean_llm_calls": 2.23
+}

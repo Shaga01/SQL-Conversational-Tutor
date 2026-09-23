@@ -17,3 +17,4 @@ eval/finetune/base-roundtrip/
 interview-guide/
 eval/finetune/adapters*/
 eval/finetune/*.log
+eval/finetune/fused_*/

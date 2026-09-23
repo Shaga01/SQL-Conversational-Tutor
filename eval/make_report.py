@@ -129,27 +129,44 @@ def main() -> None:
                   "template from its model card (single call, raw schema) rather than the chat pipeline.", ""]
 
     # fine-tuning
-    ft = [("sqltutor-base-1.5b", "Qwen2.5-Coder 1.5B (base)"), ("sqltutor-lora-1.5b", "Qwen2.5-Coder 1.5B + our LoRA")]
+    ft = [("sqltutor-base-1.5b", "Qwen2.5-Coder 1.5B, base (same 4-bit round trip)"),
+          ("sqltutor-lora-1.5b", "+ LoRA run 1 (lr 1e-4, final step) ✗"),
+          ("sqltutor-lora2-1.5b", "+ LoRA run 2 (lr 1e-5, step chosen on validation DBs)")]
     ft_rows = [(name, runs.get(("value_hints", m, limit)), runs.get(("self_correct", m, limit))) for m, name in ft]
     if any(r[1] for r in ft_rows):
-        seven = runs.get(("value_hints", MAIN_MODEL, limit))
-        lines += ["## Fine-tuning a small model (LoRA, trained locally with MLX)", "",
-                  "| Model | Same prompt as training EX % | + few-shot & self-correction EX % |", "|---|---|---|"]
+        lines += ["## Fine-tuning a small model (QLoRA, trained locally with MLX)", "",
+                  "| Model | Same prompt as training | + few-shot & self-correction |", "|---|---|---|"]
         for name, a, b in ft_rows:
-            lines.append(f"| {name} | {ex_cell(a) if a else '–'} | {ex_cell(b) if b else '–'} |")
-        if seven:
-            lines.append(f"| Qwen2.5-Coder 7B (reference) | {ex_cell(seven)} | "
-                         f"{ex_cell(runs[('self_correct', MAIN_MODEL, limit)]) if ('self_correct', MAIN_MODEL, limit) in runs else '–'} |")
-        base_ft, lora_ft = ft_rows[0][1], ft_rows[1][1]
-        if base_ft and lora_ft:
-            lines += ["", f"LoRA vs base (same prompt): McNemar *p* = {mcnemar_p(base_ft['records'], lora_ft['records']):.3f}."]
-        log = ROOT / "eval" / "finetune" / "train.log"
-        if log.exists():
-            vals = [ln for ln in log.read_text().splitlines() if "Val loss" in ln]
-            if vals:
-                lines += ["", f"Validation loss (held-out databases): first `{vals[0].strip()}` → last `{vals[-1].strip()}`."]
-        lines += ["", "Training data: 6,359 Spider **train** questions; validation holds out 6 whole databases. "
-                  "The dev set used above is never seen in training.", ""]
+            if a or b:
+                lines.append(f"| {name} | {ex_cell(a) if a else '–'} | {ex_cell(b) if b else '–'} |")
+        seven_a, seven_b = runs.get(("value_hints", MAIN_MODEL, limit)), runs.get(("self_correct", MAIN_MODEL, limit))
+        if seven_a:
+            lines.append(f"| Qwen2.5-Coder 7B (reference) | {ex_cell(seven_a)} | {ex_cell(seven_b) if seven_b else '–'} |")
+        base_ft = ft_rows[0][1]
+        for label, r in ((ft_rows[1][0], ft_rows[1][1]), (ft_rows[2][0], ft_rows[2][1])):
+            if base_ft and r:
+                lines.append(f"\n{label.split(' (')[0].lstrip('+ ')} vs base (same prompt): "
+                             f"{100 * (r['overall']['ex'] - base_ft['overall']['ex']):+.1f} points, McNemar *p* = "
+                             f"{mcnemar_p(base_ft['records'], r['records']):.3f}.")
+        curves = [(p.stem.split("__")[1], json.loads(p.read_text())) for p in sorted(RESULTS.glob("finetune_curve__*.json"))]
+        if curves:
+            lines += ["", "Execution accuracy at each saved checkpoint (evaluated directly in MLX, before merging):", ""]
+            for name, c in curves:
+                steps = sorted(c["curve"], key=int)
+                where = "held-out training DBs (used to choose the checkpoint)" if c["split"] == "valid" else "Spider dev sample (diagnosis only)"
+                lines += [f"*{name}*, {c['n']} questions from {where}:", "",
+                          "| step | " + " | ".join(steps) + " |", "|---" * (len(steps) + 1) + "|",
+                          "| EX % | " + " | ".join(f"{100 * c['curve'][k]['ex']:.0f}" for k in steps) + " |",
+                          "| query errors | " + " | ".join(str(c["curve"][k]["exec_errors"]) for k in steps) + " |", ""]
+        lines += ["Run 1 used learning rate 1e-4 with MLX's LoRA `scale: 20`. MLX applies that scale directly to the update "
+                  "(the Hugging Face convention divides by rank), so steps were roughly 10× larger than MLX's defaults "
+                  "intend. Validation loss still fell (1.14 → 0.31), but execution accuracy collapsed and recovered only "
+                  "partly as the learning rate decayed: the model imitated Spider's SQL style and started inventing "
+                  "columns. Run 2 used MLX's default 1e-5, and its checkpoint was chosen by execution accuracy on "
+                  "held-out training databases, never on dev.", "",
+                  "Training data: 5,755 Spider **train** examples (≤1,400 tokens); validation holds out 6 whole databases. "
+                  "LoRA rank 16 on the top 16 of 28 layers (10.5M trainable parameters, 0.68%), 1,600 examples at "
+                  "batch 1 × 4 gradient accumulation, 4-bit base (QLoRA), 3.3 GB peak memory on an M3.", ""]
 
     lines += _detector_section()
 

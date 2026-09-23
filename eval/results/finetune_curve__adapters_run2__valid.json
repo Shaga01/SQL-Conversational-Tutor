@@ -1,0 +1,43 @@
+{
+  "adapters": "adapters_run2",
+  "split": "valid",
+  "n": 100,
+  "curve": {
+    "0": {
+      "ex": 0.8,
+      "exec_errors": 6
+    },
+    "200": {
+      "ex": 0.84,
+      "exec_errors": 10
+    },
+    "400": {
+      "ex": 0.78,
+      "exec_errors": 18
+    },
+    "600": {
+      "ex": 0.77,
+      "exec_errors": 16
+    },
+    "800": {
+      "ex": 0.81,
+      "exec_errors": 12
+    },
+    "1000": {
+      "ex": 0.85,
+      "exec_errors": 12
+    },
+    "1200": {
+      "ex": 0.85,
+      "exec_errors": 8
+    },
+    "1400": {
+      "ex": 0.84,
+      "exec_errors": 9
+    },
+    "1600": {
+      "ex": 0.83,
+      "exec_errors": 9
+    }
+  }
+}
