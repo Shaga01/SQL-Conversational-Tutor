@@ -15,3 +15,5 @@ eval/finetune/Modelfile.*
 eval/finetune/base-4bit/
 eval/finetune/base-roundtrip/
 interview-guide/
+eval/finetune/adapters*/
+eval/finetune/*.log

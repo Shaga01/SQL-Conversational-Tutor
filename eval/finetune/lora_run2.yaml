@@ -1,0 +1,30 @@
+# QLoRA fine-tuning of Qwen2.5-Coder-1.5B-Instruct for text-to-SQL on Apple Silicon (MLX).
+# The frozen base model is 4-bit quantized (eval/finetune/base-4bit, made by run_finetune.sh);
+# only the small LoRA adapter matrices are trained, in 16-bit. Fits a 16 GB MacBook.
+# Run:  .venv/bin/python -m mlx_lm lora --config eval/finetune/lora.yaml
+model: eval/finetune/base-4bit
+train: true
+data: eval/finetune/data
+adapter_path: eval/finetune/adapters_run2
+fine_tune_type: lora
+mask_prompt: true          # loss only on the SQL answer, not on the (long) schema prompt
+num_layers: 16             # adapt the top 16 of 28 transformer blocks
+lora_parameters:
+  rank: 16
+  scale: 20.0
+  dropout: 0.05
+batch_size: 1
+grad_accumulation_steps: 4 # effective batch of 4 at the memory cost of 1
+iters: 1600                # 400 optimizer steps x 4 examples ~ 0.28 epoch (laptop compute budget)
+learning_rate: 1.0e-5   # MLX convention: scale multiplies the update directly, so use its default LR
+lr_schedule:
+  name: cosine_decay
+  warmup: 80
+  arguments: [1.0e-5, 1600, 1.0e-7]
+max_seq_length: 1536
+grad_checkpoint: true      # recompute activations in the backward pass to save memory
+steps_per_report: 50
+steps_per_eval: 200
+val_batches: 60
+save_every: 200
+seed: 0

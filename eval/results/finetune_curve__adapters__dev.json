@@ -1,0 +1,27 @@
+{
+  "n": 60,
+  "curve": {
+    "0": {
+      "ex": 0.6,
+      "exec_errors": 12
+    },
+    "400": {
+      "ex": 0.383,
+      "exec_errors": 27
+    },
+    "800": {
+      "ex": 0.25,
+      "exec_errors": 32
+    },
+    "1200": {
+      "ex": 0.483,
+      "exec_errors": 24
+    },
+    "1600": {
+      "ex": 0.467,
+      "exec_errors": 20
+    }
+  },
+  "adapters": "adapters",
+  "split": "dev"
+}

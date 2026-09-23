@@ -67,6 +67,9 @@ def main() -> None:
         with (OUT / f"{name}.jsonl").open("w") as f:
             for r in split:
                 f.write(json.dumps({"messages": r["messages"]}) + "\n")
+    with (OUT / "valid_meta.jsonl").open("w") as f:
+        for db_id in sorted(val_dbs):
+            f.write(json.dumps({"db_id": db_id}) + "\n")
     print(f"train={len(splits['train'])} valid={len(splits['valid'])} (valid DBs: {len(val_dbs)}) skipped={skipped}")
 
 
