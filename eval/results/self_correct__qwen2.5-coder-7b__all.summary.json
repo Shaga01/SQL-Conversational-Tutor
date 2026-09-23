@@ -1,0 +1,69 @@
+{
+  "run": "self_correct__qwen2.5-coder-7b__all",
+  "config_name": "self_correct",
+  "model": "qwen2.5-coder:7b",
+  "limit": null,
+  "seed": 42,
+  "config": {
+    "model": "qwen2.5-coder:7b",
+    "rich_schema": true,
+    "schema_linking": false,
+    "value_hints": true,
+    "few_shot": 3,
+    "self_correct_rounds": 2,
+    "n_samples": 1,
+    "sample_temperature": 0.8,
+    "max_tokens": 400
+  },
+  "overall": {
+    "n": 1034,
+    "ex": 0.7785
+  },
+  "by_hardness": {
+    "easy": {
+      "n": 246,
+      "ex": 0.8984
+    },
+    "medium": {
+      "n": 446,
+      "ex": 0.8341
+    },
+    "hard": {
+      "n": 185,
+      "ex": 0.6865
+    },
+    "extra": {
+      "n": 157,
+      "ex": 0.5414
+    }
+  },
+  "by_feature": {
+    "aggregate": {
+      "n": 551,
+      "ex": 0.7931
+    },
+    "group_by": {
+      "n": 277,
+      "ex": 0.7292
+    },
+    "join": {
+      "n": 408,
+      "ex": 0.6691
+    },
+    "order_by": {
+      "n": 237,
+      "ex": 0.7468
+    },
+    "set_op": {
+      "n": 80,
+      "ex": 0.5875
+    },
+    "subquery": {
+      "n": 83,
+      "ex": 0.6386
+    }
+  },
+  "errors": 23,
+  "mean_latency_s": 11.96,
+  "mean_llm_calls": 1.09
+}

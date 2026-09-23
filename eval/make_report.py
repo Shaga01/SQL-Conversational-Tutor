@@ -78,10 +78,21 @@ def main() -> None:
         "**Metric:** execution accuracy (EX) on the Spider dev set. A prediction counts as correct when running it "
         "returns the same result set as the gold query (row order only matters if the gold query has ORDER BY; "
         "column order is ignored), following the Spider test-suite convention.", "",
-        f"**Sample:** a fixed random sample of {limit} dev questions (seed 42), identical for every row below. "
-        "Brackets show the 95% bootstrap confidence interval; *p* is an exact McNemar test against the previous "
-        "row on the same questions. All models run locally via Ollama (Q4_K_M quantization) on an Apple M3 with 16 GB.", "",
+        f"**Samples:** headline rows use all 1,034 dev questions; ablation, model-comparison and fine-tuning tables use a "
+        f"fixed random sample of {limit} dev questions (seed 42), identical for every row. "
+        "Brackets show the 95% bootstrap confidence interval; *p* is an exact McNemar test on the same questions (in "
+        "the ablation, against the previous row). All models run locally via Ollama (Q4_K_M quantization) on an Apple M3 with 16 GB.", "",
     ]
+
+    lines += _key_findings(runs, limit)
+    full_base, full_app = runs.get(("baseline", MAIN_MODEL, None)), runs.get(("self_correct", MAIN_MODEL, None))
+    if full_base and full_app:
+        lines += ["## Headline: full Spider dev set (1,034 questions)", "",
+                  "| Pipeline | EX % [95% CI] | easy | medium | hard | extra |", "|---|---|---:|---:|---:|---:|"]
+        for label, r in (("Baseline (single prompt)", full_base), ("App pipeline (schema, hints, few-shot, self-correction)", full_app)):
+            h = r["by_hardness"]
+            lines.append(f"| {label} | {ex_cell(r)} | " + " | ".join(pct(h.get(k, {}).get("ex")) for k in HARDNESS) + " |")
+        lines += ["", f"Paired McNemar test: *p* = {mcnemar_p(full_base['records'], full_app['records']):.4f}.", ""]
 
     rows = [(label, runs.get((cfg, MAIN_MODEL, limit))) for cfg, label in LADDER]
     rows = [(label, r) for label, r in rows if r]
@@ -106,15 +117,6 @@ def main() -> None:
                   f"(McNemar *p* = {mcnemar_p(base['records'], best['records']):.3f}).", ""]
         _chart(rows, "ablation.png", f"Spider dev, {limit}-question sample\ncumulative ablation ({MAIN_MODEL})")
         lines += ["![ablation chart](results/ablation.png)", ""]
-
-    full_base, full_app = runs.get(("baseline", MAIN_MODEL, None)), runs.get(("self_correct", MAIN_MODEL, None))
-    if full_base and full_app:
-        lines += ["## Headline: full Spider dev set (1,034 questions)", "",
-                  "| Pipeline | EX % [95% CI] | easy | medium | hard | extra |", "|---|---|---:|---:|---:|---:|"]
-        for label, r in (("Baseline (single prompt)", full_base), ("App pipeline (schema, hints, few-shot, self-correction)", full_app)):
-            h = r["by_hardness"]
-            lines.append(f"| {label} | {ex_cell(r)} | " + " | ".join(pct(h.get(k, {}).get("ex")) for k in HARDNESS) + " |")
-        lines += ["", f"Paired McNemar test: *p* = {mcnemar_p(full_base['records'], full_app['records']):.4f}.", ""]
 
     # model comparison
     comp = [("qwen2.5-coder:7b", "Qwen2.5-Coder 7B"), ("llama3.1:8b", "Llama 3.1 8B"), ("sqlcoder:7b", "SQLCoder 7B †")]
@@ -148,12 +150,19 @@ def main() -> None:
                 lines.append(f"\n{label.split(' (')[0].lstrip('+ ')} vs base (same prompt): "
                              f"{100 * (r['overall']['ex'] - base_ft['overall']['ex']):+.1f} points, McNemar *p* = "
                              f"{mcnemar_p(base_ft['records'], r['records']):.3f}.")
+        full_b, full_l = runs.get(("value_hints", "sqltutor-base-1.5b", None)), runs.get(("value_hints", "sqltutor-lora2-1.5b", None))
+        if full_b and full_l:
+            lines += ["", "**Full dev set (1,034 questions), same prompt as training:** "
+                      f"base {ex_cell(full_b)} → LoRA run 2 {ex_cell(full_l)}, "
+                      f"{100 * (full_l['overall']['ex'] - full_b['overall']['ex']):+.1f} points, McNemar *p* = "
+                      f"{mcnemar_p(full_b['records'], full_l['records']):.4f}."]
         curves = [(p.stem.split("__")[1], json.loads(p.read_text())) for p in sorted(RESULTS.glob("finetune_curve__*.json"))]
         if curves:
             lines += ["", "Execution accuracy at each saved checkpoint (evaluated directly in MLX, before merging):", ""]
             for name, c in curves:
                 steps = sorted(c["curve"], key=int)
-                where = "held-out training DBs (used to choose the checkpoint)" if c["split"] == "valid" else "Spider dev sample (diagnosis only)"
+                where = ("held-out training DBs (used to choose the checkpoint)" if c["split"] == "valid"
+                         else "Spider dev sample (diagnosis only)")
                 lines += [f"*{name}*, {c['n']} questions from {where}:", "",
                           "| step | " + " | ".join(steps) + " |", "|---" * (len(steps) + 1) + "|",
                           "| EX % | " + " | ".join(f"{100 * c['curve'][k]['ex']:.0f}" for k in steps) + " |",
@@ -178,6 +187,38 @@ def main() -> None:
     (ROOT / "eval" / "RESULTS.md").write_text(report)
     _sync_readme(report)
     print(report)
+
+
+def _key_findings(runs: dict, limit: int) -> list[str]:
+    """Headline claims, computed from the result files so they can never drift from the data."""
+    out: list[str] = []
+    fb, fa = runs.get(("baseline", MAIN_MODEL, None)), runs.get(("self_correct", MAIN_MODEL, None))
+    if fb and fa:
+        hb, ha = fb["by_hardness"], fa["by_hardness"]
+        out.append(f"- **Full dev set (1,034 questions):** a single-prompt baseline scores {pct(fb['overall']['ex'])}%; the app "
+                   f"pipeline (rich schema, value hints, few-shot retrieval, self-correction) scores {pct(fa['overall']['ex'])}% "
+                   f"(McNemar *p* = {mcnemar_p(fb['records'], fa['records']):.2f}, no overall difference). It gains on extra-hard "
+                   f"questions ({pct(hb['extra']['ex'])} → {pct(ha['extra']['ex'])}%) and loses on hard ones "
+                   f"({pct(hb['hard']['ex'])} → {pct(ha['hard']['ex'])}%). Gains seen for this configuration on the "
+                   f"{limit}-question sample did not hold up on the full set.")
+    sb, sf = runs.get(("baseline", MAIN_MODEL, limit)), runs.get(("full", MAIN_MODEL, limit))
+    if sb and sf:
+        out.append(f"- **Self-consistency voting** (5 samples) reached {pct(sf['overall']['ex'])}% vs {pct(sb['overall']['ex'])}% on the "
+                   f"{limit}-question sample (*p* = {mcnemar_p(sb['records'], sf['records']):.3f}) at ~{sf['mean_llm_calls']:.1f}× "
+                   "the LLM calls; it was not run on the full set.")
+    bb, bl = runs.get(("value_hints", "sqltutor-base-1.5b", None)), runs.get(("value_hints", "sqltutor-lora2-1.5b", None))
+    if bb and bl:
+        out.append(f"- **Our QLoRA fine-tune of Qwen2.5-Coder 1.5B** (trained on a laptop) improves it from "
+                   f"{pct(bb['overall']['ex'])}% to {pct(bl['overall']['ex'])}% on the full dev set (McNemar "
+                   f"*p* = {mcnemar_p(bb['records'], bl['records']):.4f}), at every difficulty level, with "
+                   f"{bb['errors'] - bl['errors']} fewer failing queries. The first attempt made the model worse; see below.")
+    det = RESULTS / "misconceptions_train.json"
+    if det.exists():
+        d = json.loads(det.read_text())
+        out.append(f"- **Tutor feedback:** on {d['mutants_scored']:,} injected bugs the misconception detector names the right "
+                   f"mistake {pct(d['micro_graded_recall'])}% of the time, and flags {pct(d['clean_flagged_rate'])}% of "
+                   f"{d['clean_queries']:,} correct queries.")
+    return (["## Key findings", ""] + out + [""]) if out else []
 
 
 def _detector_section() -> list[str]:

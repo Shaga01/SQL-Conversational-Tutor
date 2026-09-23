@@ -11,7 +11,7 @@ Everything runs locally and costs nothing: open models served by [Ollama](https:
 - **Grounded feedback, not free-form guessing.** Deterministic analyzers decide *what* is wrong: 20+ misconception rules over the SQL syntax tree, SQLite error translation, database-aware checks, and result-set diffs against a reference. The LLM only decides *how to say it*, from a FACTS block it is told not to go beyond.
 - **Feedback quality is measured, too.** Mutation testing injects known bugs into ~7,000 correct Spider queries; the tutor names the right mistake for ~99% of them and flags under 2% of the correct queries. Held-out and post-hoc numbers are reported separately.
 - **An agentic text-to-SQL pipeline where each stage is measured.** Schema representation, value retrieval, few-shot RAG, execution-guided self-correction and self-consistency voting can each be toggled, and each is benchmarked on Spider with confidence intervals and significance tests.
-- **Our own fine-tuned model.** A LoRA adapter for Qwen2.5-Coder-1.5B, trained on Spider's train split on an M3 MacBook, compared with its base model through an identical serving path.
+- **Our own fine-tuned model.** A QLoRA adapter for Qwen2.5-Coder-1.5B, trained on Spider's train split on an M3 MacBook (3.3 GB peak memory). It beats the base model by a statistically significant margin on the full dev set, measured through an identical serving path, with the checkpoint chosen on held-out training databases.
 - **Adaptive learning.** Bayesian Knowledge Tracing over a 16-skill prerequisite graph, with exercises chosen from the learner's zone of proximal development and explanation depth adapted to the inferred level.
 - **A secure sandbox.** Four independent layers (AST validation, read-only connection, SQLite authorizer, time and memory limits), backed by adversarial tests (infinite recursive CTEs, Cartesian explosions, `ATTACH`, `zeroblob` memory bombs, …).
 
@@ -20,7 +20,23 @@ Everything runs locally and costs nothing: open models served by [Ollama](https:
 <!-- RESULTS:START -->
 **Metric:** execution accuracy (EX) on the Spider dev set. A prediction counts as correct when running it returns the same result set as the gold query (row order only matters if the gold query has ORDER BY; column order is ignored), following the Spider test-suite convention.
 
-**Sample:** a fixed random sample of 200 dev questions (seed 42), identical for every row below. Brackets show the 95% bootstrap confidence interval; *p* is an exact McNemar test against the previous row on the same questions. All models run locally via Ollama (Q4_K_M quantization) on an Apple M3 with 16 GB.
+**Samples:** headline rows use all 1,034 dev questions; ablation, model-comparison and fine-tuning tables use a fixed random sample of 200 dev questions (seed 42), identical for every row. Brackets show the 95% bootstrap confidence interval; *p* is an exact McNemar test on the same questions (in the ablation, against the previous row). All models run locally via Ollama (Q4_K_M quantization) on an Apple M3 with 16 GB.
+
+### Key findings
+
+- **Full dev set (1,034 questions):** a single-prompt baseline scores 78.4%; the app pipeline (rich schema, value hints, few-shot retrieval, self-correction) scores 77.8% (McNemar *p* = 0.66, no overall difference). It gains on extra-hard questions (47.1 → 54.1%) and loses on hard ones (74.1 → 68.7%). Gains seen for this configuration on the 200-question sample did not hold up on the full set.
+- **Self-consistency voting** (5 samples) reached 78.5% vs 73.5% on the 200-question sample (*p* = 0.087) at ~5.7× the LLM calls; it was not run on the full set.
+- **Our QLoRA fine-tune of Qwen2.5-Coder 1.5B** (trained on a laptop) improves it from 57.0% to 60.5% on the full dev set (McNemar *p* = 0.0033), at every difficulty level, with 58 fewer failing queries. The first attempt made the model worse; see below.
+- **Tutor feedback:** on 19,613 injected bugs the misconception detector names the right mistake 99.1% of the time, and flags 1.6% of 6,997 correct queries.
+
+### Headline: full Spider dev set (1,034 questions)
+
+| Pipeline | EX % [95% CI] | easy | medium | hard | extra |
+|---|---|---:|---:|---:|---:|
+| Baseline (single prompt) | **78.4** <sub>[75.9, 80.9]</sub> | 90.6 | 84.5 | 74.1 | 47.1 |
+| App pipeline (schema, hints, few-shot, self-correction) | **77.8** <sub>[75.3, 80.3]</sub> | 89.8 | 83.4 | 68.7 | 54.1 |
+
+Paired McNemar test: *p* = 0.6587.
 
 ### Ablation: what each pipeline stage contributes (qwen2.5-coder:7b)
 
@@ -45,10 +61,45 @@ Best configuration vs baseline: 73.5% → 78.5% (McNemar *p* = 0.087).
 | Model | Baseline EX % | + rich schema, hints, few-shot, self-correction EX % |
 |---|---|---|
 | Qwen2.5-Coder 7B | **73.5** <sub>[67.5, 79.5]</sub> | **76.5** <sub>[70.5, 82.0]</sub> |
-| Llama 3.1 8B | **71.0** <sub>[64.5, 77.0]</sub> | – |
+| Llama 3.1 8B | **71.0** <sub>[64.5, 77.0]</sub> | **73.0** <sub>[66.5, 79.0]</sub> |
 | SQLCoder 7B † | **40.5** <sub>[33.5, 47.5]</sub> | – |
 
 † SQLCoder is a completion model trained on its own prompt template, so it is evaluated with the template from its model card (single call, raw schema) rather than the chat pipeline.
+
+### Fine-tuning a small model (QLoRA, trained locally with MLX)
+
+| Model | Same prompt as training | + few-shot & self-correction |
+|---|---|---|
+| Qwen2.5-Coder 1.5B, base (same 4-bit round trip) | **54.5** <sub>[47.5, 61.5]</sub> | **50.0** <sub>[43.0, 57.0]</sub> |
+| + LoRA run 1 (lr 1e-4, final step) ✗ | **42.5** <sub>[35.5, 49.5]</sub> | **29.5** <sub>[23.5, 35.5]</sub> |
+| + LoRA run 2 (lr 1e-5, step chosen on validation DBs) | **59.0** <sub>[52.0, 65.5]</sub> | **53.5** <sub>[46.5, 60.5]</sub> |
+| Qwen2.5-Coder 7B (reference) | **72.0** <sub>[65.5, 78.0]</sub> | **76.5** <sub>[70.5, 82.0]</sub> |
+
+LoRA run 1 vs base (same prompt): -12.0 points, McNemar *p* = 0.002.
+
+LoRA run 2 vs base (same prompt): +4.5 points, McNemar *p* = 0.150.
+
+**Full dev set (1,034 questions), same prompt as training:** base **57.0** <sub>[54.0, 60.0]</sub> → LoRA run 2 **60.5** <sub>[57.5, 63.6]</sub>, +3.6 points, McNemar *p* = 0.0033.
+
+Execution accuracy at each saved checkpoint (evaluated directly in MLX, before merging):
+
+*adapters*, 60 questions from Spider dev sample (diagnosis only):
+
+| step | 0 | 400 | 800 | 1200 | 1600 |
+|---|---|---|---|---|---|
+| EX % | 60 | 38 | 25 | 48 | 47 |
+| query errors | 12 | 27 | 32 | 24 | 20 |
+
+*adapters_run2*, 100 questions from held-out training DBs (used to choose the checkpoint):
+
+| step | 0 | 200 | 400 | 600 | 800 | 1000 | 1200 | 1400 | 1600 |
+|---|---|---|---|---|---|---|---|---|---|
+| EX % | 80 | 84 | 78 | 77 | 81 | 85 | 85 | 84 | 83 |
+| query errors | 6 | 10 | 18 | 16 | 12 | 12 | 8 | 9 | 9 |
+
+Run 1 used learning rate 1e-4 with MLX's LoRA `scale: 20`. MLX applies that scale directly to the update (the Hugging Face convention divides by rank), so steps were roughly 10× larger than MLX's defaults intend. Validation loss still fell (1.14 → 0.31), but execution accuracy collapsed and recovered only partly as the learning rate decayed: the model imitated Spider's SQL style and started inventing columns. Run 2 used MLX's default 1e-5, and its checkpoint was chosen by execution accuracy on held-out training databases, never on dev.
+
+Training data: 5,755 Spider **train** examples (≤1,400 tokens); validation holds out 6 whole databases. LoRA rank 16 on the top 16 of 28 layers (10.5M trainable parameters, 0.68%), 1,600 examples at batch 1 × 4 gradient accumulation, 4-bit base (QLoRA), 3.3 GB peak memory on an M3.
 
 ### Tutor feedback quality: does the misconception detector name the right mistake?
 
@@ -127,7 +178,7 @@ flowchart LR
 - **Why deterministic analysis plus an LLM, and not the LLM alone?** A tutor that invents mistakes is worse than none. Rules are exact and testable; the test suite includes correct queries that must produce *zero* findings. The LLM adds tone, adapts to the learner's level, and handles open questions.
 - **Why a synthetic dataset for teaching?** On a 4-row table most wrong queries return the right answer by accident. The shop database is generated so that customers without orders, NULL emails, cancelled orders and duplicate names make each classic mistake change the result.
 - **Why grade by result equivalence?** Many different queries are correct. Grading runs both queries and compares result sets (multiset semantics, column order ignored, row order only when the reference sorts), the same rule used by the benchmark.
-- **Why report failures honestly?** In the ablation, the rich schema representation did *not* help on Spider, whose schemas are small and self-descriptive. The table keeps that row.
+- **Why report failures honestly?** The rich schema representation did *not* help on Spider, whose schemas are small and self-descriptive, and the self-correction pipeline's gain on the 200-question sample disappeared on the full dev set. Both results stay in the tables. The first fine-tuning run made the model worse; the report keeps it together with the diagnosis (a learning rate about 10× too high for MLX's LoRA scaling convention) and the corrected run.
 - **Why mutation testing for the tutor?** Hand-written test cases only show that rules work on examples I thought of. Injecting bugs into thousands of real queries on databases I never looked at exposed four real detector flaws (for example, it suggested HAVING when the actual problem was a missing GROUP BY), and it also found errors in Spider's own reference SQL.
 - **Infrastructure failures are never scored.** If the model server errors, the harness retries and otherwise leaves the question unscored for a resumed run, so an outage cannot pass as a wrong answer.
 
