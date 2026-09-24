@@ -18,3 +18,5 @@ interview-guide/
 eval/finetune/adapters*/
 eval/finetune/*.log
 eval/finetune/fused_*/
+.claude/
+docs/capstone/Capstone_Project_Report.docx

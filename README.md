@@ -4,7 +4,7 @@ An intelligent tutoring system for SQL. Learners write queries against a real da
 
 Everything runs locally and costs nothing: open models served by [Ollama](https://ollama.com), SQLite, and a LoRA fine-tune trained on a laptop with Apple MLX.
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/Shaga01/SQL-Conversational-Tutor/actions/workflows/ci.yml/badge.svg)](https://github.com/Shaga01/SQL-Conversational-Tutor/actions/workflows/ci.yml)
 
 ## Highlights
 
@@ -216,4 +216,4 @@ Runs are resumable and LLM responses are cached, so re-running a report is insta
 
 ## Project history
 
-v1 was a course capstone (Boise State CS-695); its proposal, poster and report are in [docs/capstone/](docs/capstone/). The v1 report predates the evaluation harness, and its evaluation figures are superseded by the measured results above.
+v1 was a course capstone (Boise State CS-695); its proposal and poster are in [docs/capstone/](docs/capstone/). v2 is a rebuild: a secure sandbox, the evaluation harness, the tutor features and fine-tuning. All results above come from v2's measured runs.
