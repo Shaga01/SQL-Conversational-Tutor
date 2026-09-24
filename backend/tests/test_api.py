@@ -116,3 +116,15 @@ def test_empty_submission_is_not_graded(client):
     r = client.post("/api/exercises/where-1/submit", json={"learner_id": "pytest-empty", "sql": "-- just a comment\n"})
     assert r.status_code == 400
     assert client.get("/api/learners/pytest-empty").json()["history"] == []
+
+
+def test_multiline_inner_join_gets_specific_diagnosis(client):
+    sql = "SELECT c.id, c.first_name, c.last_name\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.id IS NULL"
+    body = client.post("/api/exercises/outer-1/submit", json={"learner_id": "pytest-multiline", "sql": sql}).json()
+    assert "needs-outer-join" in [f["id"] for f in body["findings"]]
+
+
+def test_step_explanations_do_not_leak_sql_comments(client):
+    sql = "-- find the rows\nSELECT id FROM customers WHERE city = 'Boise' -- trailing note"
+    stages = client.post("/api/query/trace", json={"sql": sql}).json()["stages"]
+    assert all("find the rows" not in s["explanation"] and "trailing" not in s["explanation"] for s in stages)

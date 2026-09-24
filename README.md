@@ -6,6 +6,12 @@ Everything runs locally and costs nothing: open models served by [Ollama](https:
 
 [![CI](https://github.com/Shaga01/SQL-Conversational-Tutor/actions/workflows/ci.yml/badge.svg)](https://github.com/Shaga01/SQL-Conversational-Tutor/actions/workflows/ci.yml)
 
+**A learner's classic mistake:** an INNER JOIN used to find customers who never ordered. The tutor names the mistake from the result diff, and the execution view shows why: the JOIN step removes every customer without an order, so `o.id IS NULL` can never match (160 → 443 → 0 rows).
+
+| Feedback | Step-by-step execution |
+|---|---|
+| ![Tutor feedback](docs/screenshot-feedback.png) | ![Execution steps](docs/screenshot-steps.png) |
+
 ## Highlights
 
 - **Grounded feedback, not free-form guessing.** Deterministic analyzers decide *what* is wrong: 20+ misconception rules over the SQL syntax tree, SQLite error translation, database-aware checks, and result-set diffs against a reference. The LLM only decides *how to say it*, from a FACTS block it is told not to go beyond.

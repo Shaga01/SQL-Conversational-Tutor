@@ -70,7 +70,7 @@ class _Scope:
 
 
 def _snippet(node: exp.Expression) -> str:
-    return node.sql(dialect="sqlite")[:160]
+    return node.sql(dialect="sqlite", comments=False)[:160]
 
 
 def _outside_subqueries(node: exp.Expression, root: exp.Expression, kinds) -> list[exp.Expression]:
@@ -530,7 +530,8 @@ def from_result_diff(diff: ResultDiff, student_sql: str, reference_sql: str, act
     if diff.match:
         return []
     out: list[Finding] = []
-    s, r = student_sql.lower(), reference_sql.lower()
+    # normalise whitespace: "c\nJOIN orders" must match " join " like "c JOIN orders"
+    s, r = (" ".join(q.lower().split()) for q in (student_sql, reference_sql))
     if diff.expected_cols != diff.actual_cols:
         out.append(Finding("wrong-columns", "error", "select", "Wrong number of columns", diff.summary))
     elif diff.order_only:

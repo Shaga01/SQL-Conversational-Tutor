@@ -35,7 +35,7 @@ class Stage:
 
 
 def _sql(node: exp.Expression) -> str:
-    return node.sql(dialect="sqlite")
+    return node.sql(dialect="sqlite", comments=False)
 
 
 def _strip(select: exp.Select, keep: set[str], joins: int | None = None) -> exp.Select:
