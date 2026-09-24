@@ -28,13 +28,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from sqlglot import exp  # noqa: E402
+
 from app.catalog import describe, resolve_db  # noqa: E402
 from app.compare import diff_results, has_top_level_order_by, results_match  # noqa: E402
 from app.sandbox import SandboxError, run_query  # noqa: E402
 from app.sql_guard import parse_sql  # noqa: E402
 from app.tutor.exercises import EXERCISES  # noqa: E402
 from app.tutor.misconceptions import analyze_query, explain_error, from_result_diff  # noqa: E402
-from sqlglot import exp  # noqa: E402
 
 SPIDER = ROOT / "eval" / "data" / "spider_data"
 OUT = ROOT / "eval" / "results" / "misconceptions.json"

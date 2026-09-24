@@ -1,5 +1,7 @@
 line-length = 140
 target-version = "py311"
+# first-party code, so import sorting is the same wherever ruff runs
+src = ["backend", "eval"]
 
 [lint]
 select = ["E", "F", "W", "B", "I"]

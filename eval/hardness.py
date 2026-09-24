@@ -7,8 +7,9 @@ uses sqlglot, so a handful of borderline queries may be bucketed differently.
 
 from __future__ import annotations
 
-from app.sql_guard import parse_sql
 from sqlglot import exp
+
+from app.sql_guard import parse_sql
 
 _AGGS = (exp.Count, exp.Sum, exp.Avg, exp.Min, exp.Max)
 

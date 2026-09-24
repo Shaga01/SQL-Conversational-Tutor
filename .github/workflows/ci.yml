@@ -18,7 +18,9 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt pytest ruff
-      - run: ruff check .. --config ../ruff.toml
+      - name: Lint (from the repository root, where ruff.toml lives)
+        run: ruff check .
+        working-directory: .
       # The LLM is faked in tests, so CI needs no model server.
       - run: python -m pytest -q
 

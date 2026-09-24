@@ -20,10 +20,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from mlx_lm import generate, load
+
 from app.compare import has_top_level_order_by, results_match
 from app.sandbox import SandboxError, run_query
 from app.text2sql.pipeline import PipelineConfig, Text2SQL, extract_sql
-from mlx_lm import generate, load
 
 FT = ROOT / "eval" / "finetune"
 SPIDER = ROOT / "eval" / "data" / "spider_data"
