@@ -1,6 +1,6 @@
 """Build eval/RESULTS.md and charts from the per-question result files.
 
-Every number in the README comes from here - nothing is typed in by hand.
+Every reported number comes from here - nothing is typed in by hand.
 Confidence intervals are 95% percentile bootstrap intervals over questions.
 Paired comparisons use the exact McNemar test on questions both runs answered.
 """
@@ -185,7 +185,6 @@ def main() -> None:
               "within ~1% of the official script (easy 246/248, medium 446/446, hard 185/174, extra 157/166)."]
     report = "\n".join(lines) + "\n"
     (ROOT / "eval" / "RESULTS.md").write_text(report)
-    _sync_readme(report)
     print(report)
 
 
@@ -262,19 +261,6 @@ def _detector_section() -> list[str]:
     out += ["", "Static recall is 0% for dropped DISTINCT and LEFT → INNER by design: without a reference solution those "
             "queries are valid SQL, and only the result diff reveals the mistake.", ""]
     return out
-
-
-def _sync_readme(report: str) -> None:
-    """Copy the result sections into README.md between the RESULTS markers."""
-    readme = ROOT / "README.md"
-    start, end = "<!-- RESULTS:START -->", "<!-- RESULTS:END -->"
-    text = readme.read_text()
-    if start not in text or end not in text:
-        return
-    body = report.split("## Reproduce")[0]
-    body = body.replace("# Evaluation results\n", "").replace("## ", "### ").replace("](results/", "](eval/results/")
-    text = text[: text.index(start) + len(start)] + "\n" + body.strip() + "\n" + text[text.index(end):]
-    readme.write_text(text)
 
 
 def _chart(rows: list[tuple[str, dict]], filename: str, title: str) -> None:
